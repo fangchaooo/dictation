@@ -84,7 +84,6 @@ class AudioWordList(QMainWindow):
 
     def itemClicked(self, index):
         item = self.list_view.model().data(index, Qt.ItemDataRole.DisplayRole)
-        print(item)
         self.signalListViewItem.emit(item)
 
     def dropEvent(self, event):
