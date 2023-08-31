@@ -13,14 +13,37 @@ from work import Worker
 
 
 def split_audio(*args, **kwargs):
-    # Load your audio.
-    song = AudioSegment.from_file(args[0])
-    print(song.duration_seconds)
-    # Split track where the silence is 2 seconds or more and get chunks using
-    # the imported function.
-    range = silence.detect_nonsilent(song, min_silence_len=1000, silence_thresh=-100, seek_step=1)
-    # Process each chunk with your parameters
-    return range
+    import json
+    with open("tmp2.json", "r+") as f:
+        data = json.load(f)
+        return data["time"]
+    # start_index = 0
+    # all_data = data["time"]
+    # for index in range(len(all_data)):
+    #     if all_data[index][0] == "young fish":
+    #         start_index = index + 1
+    #
+    # last = all_data[start_index - 1][0]
+    # for i in range(start_index, len(all_data)):
+    #     # if i+
+    #     curent = all_data[i][0]
+    #     all_data[i][0] = last
+    #     last = curent
+    #
+    # with open("tmp2.json", "w") as f:
+    #     json.dump({"time": all_data}, f)
+    # return all_data
+
+    # # Load your audio.
+    # song = AudioSegment.from_file(args[0])
+    # print(song.duration_seconds)
+    # # Split track where the silence is 2 seconds or more and get chunks using
+    # # the imported function.
+    # range = silence.detect_nonsilent(song, min_silence_len=1000, silence_thresh=-100, seek_step=1)
+    # # Process each chunk with your parameters
+    # with open("tmp.json", "w") as f:
+    #     json.dump( {"time":range}, f)
+    # return range
 
 
 class AudioPlayerApp(QMainWindow):
@@ -33,8 +56,8 @@ class AudioPlayerApp(QMainWindow):
         self.audio_output = QAudioOutput()
         self.player.setAudioOutput(self.audio_output)
         self.installEventFilter(self)
-
         self.muted = False
+        self.audio_output.setVolume(50)
         self.ui: dictation.Ui_Form = None
         self.paly_source = None
         self.threadpool = QThreadPool()
@@ -63,6 +86,7 @@ class AudioPlayerApp(QMainWindow):
                 self.player.player.setPosition(self.player.player.position() + 10000)
 
         return super().eventFilter(source, event)
+
     def setup_ui(self, ui: dictation.Ui_Form):
         self.ui = ui
         ui.LoadAudioBtn.clicked.connect(self.open_music)
@@ -89,8 +113,6 @@ class AudioPlayerApp(QMainWindow):
         self.player.positionChanged.connect(self.position_changed)
         self.player.durationChanged.connect(self.duration_changed)
 
-
-
     def audio_mute_or_open(self):
         self.muted = not self.muted
         if not self.muted:
@@ -112,7 +134,6 @@ class AudioPlayerApp(QMainWindow):
             self.player.pause()
             self.ui.StartAudioBtn.setIcon(QIcon("./play.png"))
         else:
-            # self.audio_output.setVolume(50)
             self.player.play()
             self.ui.StartAudioBtn.setIcon(QIcon("./pause.png"))
             self.show_player_end_time()
@@ -139,7 +160,8 @@ class AudioPlayerApp(QMainWindow):
         self.ui.StartAudioBtn.setIcon(QIcon("./play.png"))
 
     def open_music(self):
-        self.paly_source, _ = QFileDialog.getOpenFileName(self, "Open Audio File")
+        # self.paly_source, _ = QFileDialog.getOpenFileName(self, "Open Audio File")
+        self.paly_source = "/Users/btby/Documents/code/dictation/audios/a24.mp3"
         if self.paly_source != '':
             self.player.setSource(QUrl.fromLocalFile(self.paly_source))
             self.ui.StartAudioBtn.setEnabled(True)
@@ -158,6 +180,7 @@ class AudioPlayerApp(QMainWindow):
 
     def play_interval(self, words_list, gap_sec_time=0, speed=1, repeat_times=1):
         self.play_intervals = words_list
+        self.interval_index = 0
         self.repeat_counter = repeat_times
         self.gap_sec_time = gap_sec_time
         self.player.setPlaybackRate(speed)
@@ -166,7 +189,7 @@ class AudioPlayerApp(QMainWindow):
     def play_next_interval(self):
         if self.interval_index < len(self.play_intervals):
             start_time, end_time = self.play_intervals[self.interval_index]
-
+            print(f"play_next_interval {start_time} {end_time}")
             if self.repeat_counter_current < self.repeat_counter:
                 self.player.setPosition(start_time)  # Convert to milliseconds
                 self.player.play()
@@ -177,6 +200,7 @@ class AudioPlayerApp(QMainWindow):
                 self.interval_index += 1
                 self.timer.start(self.gap_sec_time * 1000)  # Gap time of 1 second between intervals
         else:
+            self.player.pause()
             self.timer.stop()
 
     def position_start(self, start_position, end_position):
