@@ -49,6 +49,7 @@ def split_audio(*args, **kwargs):
 class AudioPlayerApp(QMainWindow):
     signalSent = pyqtSignal(list)
     signalAudioWordSave = pyqtSignal(list)
+    signalSaveWordToDB = pyqtSignal(str, str)
 
     def __init__(self):
         super().__init__()
@@ -108,6 +109,8 @@ class AudioPlayerApp(QMainWindow):
         edit_line_register_keyboard_event(self, ui.AudioWordInput, self.save_word_and_audio_time_range)
         # split word time
         ui.WordAudioStartBtn.clicked.connect(self.log_word_start_time)
+        # save all word to Audio Table
+        ui.SaveAudioWordsDBBtn.clicked.connect(self.save_all_word_to_db)
         ################ split word #############################
 
         self.player.positionChanged.connect(self.position_changed)
@@ -161,7 +164,7 @@ class AudioPlayerApp(QMainWindow):
 
     def open_music(self):
         # self.paly_source, _ = QFileDialog.getOpenFileName(self, "Open Audio File")
-        self.paly_source = "/Users/btby/Documents/code/dictation/audios/a24.mp3"
+        self.paly_source = "./audios/a24.mp3"
         if self.paly_source != '':
             self.player.setSource(QUrl.fromLocalFile(self.paly_source))
             self.ui.StartAudioBtn.setEnabled(True)
@@ -203,17 +206,11 @@ class AudioPlayerApp(QMainWindow):
             self.player.pause()
             self.timer.stop()
 
-    def position_start(self, start_position, end_position):
-        duration = start_position - end_position
-        self.player.setPosition(self.convert_qtime_to_position(start_position))
-        stop_timer = QTimer(self)
-        stop_timer.timeout.connect(self.pause_audio)
-        stop_timer.start(duration)
-
     def audio_play_slider_changed(self, position):
         self.player.setPosition(position)
 
     def position_changed(self, position):
+        print("position_changed")
         if self.ui.AudiohorizontalSlider.maximum() != self.player.duration():
             self.ui.AudiohorizontalSlider.setMaximum(self.player.duration())
 
@@ -240,7 +237,7 @@ class AudioPlayerApp(QMainWindow):
         position = time.hour() * 3600000 + time.minute() * 60000 + time.second() * 1000 + time.msec() // 1000
         return position
 
-    def update_word_time_range(self, time_range: str):
+    def update_word_time_range(self, time_rsave_new_audio_to_dbange: str):
         pattern = r'\b\d+\b'
         matches = re.findall(pattern, time_range)
         start_position = int(matches[0])
@@ -254,6 +251,9 @@ class AudioPlayerApp(QMainWindow):
         start = self.ui.WordTimeStartInput.text()
         end = self.ui.WordTimeEndInput.text()
         self.signalAudioWordSave.emit([text, start, end])
+
+    def save_all_word_to_db(self):
+        self.signalSaveWordToDB.emit("", self.paly_source)
 
     def find(self):
         input_string = "apple [1, 2]"

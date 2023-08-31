@@ -1,3 +1,5 @@
+import os.path
+from pprint import pprint
 from PyQt6.QtWidgets import QMainWindow, QMenu, QListView
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtGui import QIcon, QStandardItemModel, QColor, QBrush
@@ -5,6 +7,7 @@ from PyQt6.QtCore import Qt, QAbstractListModel, pyqtSignal, QByteArray, QMimeDa
 import sys
 from PyQt6 import QtWidgets, QtGui, QtCore
 from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex, pyqtSignal
+from dictation_db import DictationDB
 import dictation
 
 
@@ -49,6 +52,7 @@ class AudioWordList(QMainWindow):
         self.ui = None
         self.list_view = None
         self.model = None
+        self.db = DictationDB()
 
     def setup_ui(self, ui: dictation.Ui_Form):
         self.ui = ui
@@ -118,3 +122,11 @@ class AudioWordList(QMainWindow):
 
     def get_all_data(self):
         all_data = self.list_view.model().data()
+
+    def save_new_audio_to_db(self, name, location):
+        print(name, location)
+        data = self.all_data()
+        if name == "":
+            name = os.path.splitext(os.path.basename(location))[0]
+        print(name, location)
+        self.db.set_dictation_audio(name, location, len(data), data)

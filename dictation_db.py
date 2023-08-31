@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
-from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy.ext.declarative import declarative_base
+from pprint import pprint
+
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 
 Base = declarative_base()
 
@@ -18,8 +19,9 @@ class Audio(Base):
 class Word(Base):
     __tablename__ = 'words'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    audio_id = Column(Integer, ForeignKey('audio.id'), nullable=False)
+    audio_name = Column(String, ForeignKey('audio.name'), nullable=False)
     word = Column(String, nullable=False)
+    word_chinese_mean = Column(String, nullable=False)
     word_start_time = Column(Integer, nullable=False)
     word_end_time = Column(Integer, nullable=False)
     audio = relationship('Audio', back_populates='words')
@@ -28,34 +30,52 @@ class Word(Base):
 class Dictation(Base):
     __tablename__ = 'dictation'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    dictation_time = Column(String, nullable=False)
+    dictation_time = Column(DateTime, nullable=False)
     error_word = Column(String)
-    audio_id = Column(Integer, ForeignKey('audio.id'))
+    audio_name = Column(String, ForeignKey('audio.name'))
     audio = relationship('Audio', back_populates='dictations')
 
 
-class DictationSql:
+class DictationDB:
     def __init__(self):
         self.engine = create_engine('sqlite:///dictation.db')
         Base.metadata.create_all(self.engine)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
 
+    def get_audio_and_wordinfo_for_tree_view(self):
+        audio_dictations = self.session.query(Audio, Dictation).outerjoin(Dictation,
+                                                                     Audio.name == Dictation.audio_name).all()
+        return audio_dictations
+
+
+
+        # data_dict = {}
+        # for audio, dictation in audio_dictations:
+        #     if audio.name not in data_dict:
+        #         data_dict[audio.name] = CustomItem(audio.name, self.root_item)
+        #     dictation_text = f"{dictation.dictation_time} (ERROR: {len(dictation.error_word.split())})"
+        #     data_dict[audio.name].children.append(CustomItem(dictation_text, data_dict[audio.name]))
+        #
+
     def set_dictation_audio(self, name, location, word_size, words):
         try:
             with self.session.begin():
                 audio = Audio(name=name, location=location, word_count=word_size)
                 self.session.add(audio)
-            word_entries = [Word(audio_id=audio.id, word=word, word_start_time=start_time, word_end_time=end_time)
-                            for word, start_time, end_time in words]
-            with self.session.begin():
+                word_entries = [
+                    Word(audio_name=audio.name, word=word, word_chinese_mean=mean, word_start_time=start_time,
+                         word_end_time=end_time)
+                    for word, mean, start_time, end_time in words]
                 self.session.add_all(word_entries)
+            self.session.commit()
         except Exception as e:
+            self.session.rollback()
             print("Error:", e)
 
     def get_audio_with_word(self, index=None):
         try:
-            words = self.session.query(Word.word).filter_by(audio_id=audio_index).all()
+            words = self.session.query(Word.word).filter_by(audio_id=index).all()
             return [word[0] for word in words]
         except Exception as e:
             print("Error:", e)
@@ -95,7 +115,6 @@ class DictationSql:
         self.session.close()
 
 
-if __name__ == '__main__':
-    a = DictationSql()
-    a.set_dictation_audio("Sample Audio", "/path/to/audio", 100, [("word1", 0, 1), ("word2", 2, 3)])
-    a.close()
+if __name__ == "__main__":
+    db = DictationDB()
+    db.get_audio_and_wordinfo_for_tree_view()

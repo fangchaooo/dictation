@@ -5,6 +5,7 @@ import sys
 import dictation
 import audio_player
 import audio_words
+import word_dictition
 
 
 class MainWindow(QMainWindow):
@@ -14,14 +15,17 @@ class MainWindow(QMainWindow):
         self.ui.setupUi(self)
         self.player = audio_player.AudioPlayerApp()
         self.audio_words = audio_words.AudioWordList()
+        self.dictation = word_dictition.WordDictation()
         self.player.setup_ui(self.ui)
         self.audio_words.setup_ui(self.ui)
+        self.dictation.setup_ui(self.ui)
 
         self.init()
 
     def init(self):
         self.player.signalSent.connect(self.audio_words.updateListView)
         self.player.signalAudioWordSave.connect(self.audio_words.editTextChanged)
+        self.player.signalSaveWordToDB.connect(self.audio_words.save_new_audio_to_db)
 
         self.audio_words.signalListViewItem.connect(self.player.update_word_time_range)
 

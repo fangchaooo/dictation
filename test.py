@@ -1,148 +1,115 @@
-from PyQt6.QtGui import *
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import *
+# import sys
+# from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog, QVBoxLayout, QLabel, QComboBox, QSpinBox, QDoubleSpinBox
+#
 
-import time
-import traceback, sys
+#
+# class MyWindow(QMainWindow):
+#     def __init__(self):
+#         super().__init__()
+#
+#         self.setWindowTitle("Settings Example")
+#
+#         self.settings_dialog = SettingsDialog()
+#
+#         main_widget = QPushButton("Open Settings")
+#         main_widget.clicked.connect(self.open_settings_dialog)
+#
+#         self.setCentralWidget(main_widget)
+#
+#     def open_settings_dialog(self):
+#         self.settings_dialog.exec()
+#
+# if __name__ == "__main__":
+#     app = QApplication(sys.argv)
+#     window = MyWindow()
+#     window.show()
+#     sys.exit(app.exec())
+import sys
 
+# import speech_recognition as sr
+from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLineEdit, QLabel, QPushButton
 
-class WorkerSignals(QObject):
-    '''
-    Defines the signals available from a running worker thread.
+class MyWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
 
-    Supported signals are:
+        self.setWindowTitle("Speech Dictation Example")
 
-    finished
-        No data
+        # self.r = sr.Recognizer()
+        self.correct_word = "apple"  # Example correct word
+        self.gap_time = 2  # Example gap time in seconds
+        self.correct_count = 0
+        self.total_count = 0
+        self.start_time = 0
 
-    error
-        tuple (exctype, value, traceback.format_exc() )
+        main_widget = QWidget()
+        layout = QVBoxLayout()main_widget
 
-    result
-        object data returned from processing, anything
+        self.line_edit = QLineEdit()
+        self.line_edit.returnPressed.connect(self.check_word)
+        layout.addWidget(self.line_edit)
 
-    progress
-        int indicating % progress
+        self.answer_label = QLabel()
+        layout.addWidget(self.answer_label)
 
-    '''
-    finished = pyqtSignal()
-    error = pyqtSignal(tuple)
-    result = pyqtSignal(object)
-    progress = pyqtSignal(int)
+        self.correct_rate_label = QLabel()
+        layout.addWidget(self.correct_rate_label)
 
+        self.start_button = QPushButton("Start Dictation")
+        self.start_button.clicked.connect(self.start_dictation)
+        layout.addWidget(self.start_button)
 
-class Worker(QRunnable):
-    '''
-    Worker thread
+        main_widget.setLayout(layout)
+        self.setCentralWidget(main_widget)
 
-    Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+        # Apply styles
+        self.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid #3498db;
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 16px;
+            }
+            QLabel {
+                font-size: 18px;
+            }
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                font-size: 16px;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
 
-    :param callback: The function callback to run on this worker thread. Supplied args and
-                     kwargs will be passed through to the runner.
-    :type callback: function
-    :param args: Arguments to pass to the callback function
-    :param kwargs: Keywords to pass to the callback function
-
-    '''
-
-    def __init__(self, fn, progress_callback, *args, **kwargs):
-        super(Worker, self).__init__()
-
-        # Store constructor arguments (re-used for processing)
-        self.fn = fn
-        self.args = args
-        self.kwargs = kwargs
-        self.progress_callback = progress_callback
-        self.signals = WorkerSignals()
-        # Add the callback to our kwargs
-        self.kwargs['progress_callback'] = self.progress_callback
-
-    @pyqtSlot()
-    def run(self):
-        '''
-        Initialise the runner function with passed args, kwargs.
-        '''
-
-        # Retrieve args/kwargs here; and fire processing using them
-        try:
-            result = self.fn(*self.args, **self.kwargs)
-        except:
-            traceback.print_exc()
-            exctype, value = sys.exc_info()[:2]
-            self.signals.error.emit((exctype, value, traceback.format_exc()))
+    def check_word(self):
+        user_input = self.line_edit.text().strip()
+        if user_input == self.correct_word:
+            self.correct_count += 1
+            self.total_count += 1
+            self.answer_label.setText("Correct! Next word:")
+            self.line_edit.clear()
         else:
-            self.signals.result.emit(result)  # Return the result of the processing
-        finally:
-            self.signals.finished.emit()  # Done
+            self.total_count += 1
+            self.answer_label.setText(f"Incorrect. Correct word: {self.correct_word}")
+            self.line_edit.setStyleSheet("background-color: red")
+
+    def start_dictation(self):
+        self.answer_label.setText("Next word:")
+        self.line_edit.setStyleSheet("")
+        self.line_edit.clear()
 
 
-class MainWindow(QMainWindow):
+    def update_correct_rate(self):
+        correct_rate = (self.correct_count / self.total_count) * 100 if self.total_count > 0 else 0
+        self.correct_rate_label.setText(f"Correct Rate: {correct_rate:.2f}%")
 
-    def __init__(self, *args, **kwargs):
-        super(MainWindow, self).__init__(*args, **kwargs)
-
-        self.counter = 0
-
-        layout = QVBoxLayout()
-
-        self.l = QLabel("Start")
-        b = QPushButton("DANGER!")
-        b.pressed.connect(self.oh_no)
-
-        layout.addWidget(self.l)
-        layout.addWidget(b)
-
-        w = QWidget()
-        w.setLayout(layout)
-
-        self.setCentralWidget(w)
-
-        self.show()
-
-        self.threadpool = QThreadPool()
-        print("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
-
-        self.timer = QTimer()
-        self.timer.setInterval(1000)
-
-    def progress_fn(self, n):
-        print(f"{n} done")
-
-    def execute_this_fn(self, *args, **kwargs):
-        print( args, kwargs)
-        for n in range(0, 5):
-            time.sleep(1)
-            f = n * 100 / 4
-            print(f)
-            kwargs["progress_callback"](f)
-        return "Done."
-
-    def print_output(self, s):
-        print(s)
-
-    def thread_complete(self):
-        self.timer.stop()
-        self.l.setText("THREAD COMPLETE!")
-
-    def oh_no(self):
-        self.timer.timeout.connect(self.recurring_timer)
-        self.timer.start()
-        # Pass the function to execute
-        worker = Worker(self.execute_this_fn, self.progress_fn)  # Any other args, kwargs are passed to the run function
-        worker.signals.result.connect(self.print_output)
-        worker.signals.finished.connect(self.thread_complete)
-        worker.signals.progress.connect(self.progress_fn)
-
-        # Execute
-        self.threadpool.start(worker)
-
-    def recurring_timer(self):
-        self.counter += 1
-        self.l.setText("Counter: %d" % self.counter)
-
-
-if __name__ == '__main__':
-    app = QApplication([])
-    window = MainWindow()
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MyWindow()
     window.show()
     sys.exit(app.exec())
