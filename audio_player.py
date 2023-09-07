@@ -80,14 +80,14 @@ class AudioPlayerApp(QMainWindow):
             key = event.key()
             # It Playback Rate !
             if event.modifiers() == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_Q:
-                self.player.player.setPlaybackRate(0.8)
+                self.player.setPlaybackRate(0.8)
             elif event.modifiers() == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_E:
-                self.player.player.setPlaybackRate(1.2)
+                self.player.setPlaybackRate(1.2)
                 # setPosition(int), argument is in milliseconds.
             elif event.modifiers() == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_A:
-                self.player.player.setPosition(self.player.player.position() - 10000)
+                self.player.setPosition(self.player.position() - 10000)
             elif event.modifiers() == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_D:
-                self.player.player.setPosition(self.player.player.position() + 10000)
+                self.player.setPosition(self.player.position() + 10000)
 
         return super().eventFilter(source, event)
 
