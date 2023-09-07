@@ -50,6 +50,7 @@ class AudioPlayerApp(QMainWindow):
     signalSent = pyqtSignal(list)
     signalAudioWordSave = pyqtSignal(list)
     signalSaveWordToDB = pyqtSignal(str, str)
+    signalIntervalIndex = pyqtSignal(int)
 
     def __init__(self):
         super().__init__()
@@ -70,6 +71,8 @@ class AudioPlayerApp(QMainWindow):
         self.repeat_counter = 0
         self.repeat_counter_current = 0
         self.gap_sec_time = 0
+        self.timer_active = None
+        self.speed = None
         self.timer.timeout.connect(self.play_next_interval)
 
     def eventFilter(self, source, event):
@@ -126,6 +129,10 @@ class AudioPlayerApp(QMainWindow):
             self.ui.AudioVolumSlider.setValue(50)
         self.audio_output.setMuted(self.muted)
 
+    def set_volume(self, value: int):
+        self.audio_output.setMuted(False)
+        self.ui.AudioVolumSlider.setValue(100)
+
     def audio_volume_changed(self, num: float):
         self.audio_output.setVolume(num)
 
@@ -162,17 +169,21 @@ class AudioPlayerApp(QMainWindow):
         self.player.stop()
         self.ui.StartAudioBtn.setIcon(QIcon("./play.png"))
 
-    def open_music(self):
-        # self.paly_source, _ = QFileDialog.getOpenFileName(self, "Open Audio File")
-        self.paly_source = "./audios/a24.mp3"
+    def open_music(self, is_split=True, resource_path: str = None):
+        if not resource_path:
+            self.paly_source, _ = QFileDialog.getOpenFileName(self, "Open Audio File")
+        else:
+            self.paly_source = resource_path
+        # self.paly_source = "./audios/a24.mp3"
         if self.paly_source != '':
             self.player.setSource(QUrl.fromLocalFile(self.paly_source))
             self.ui.StartAudioBtn.setEnabled(True)
 
-        worker = Worker(split_audio, None, self.paly_source)
-        worker.signals.result.connect(self.split_audio_to_words)
-        # worker.signals.finished.connect(self.thread_complete)
-        self.threadpool.start(worker)
+        if is_split:
+            worker = Worker(split_audio, None, self.paly_source)
+            worker.signals.result.connect(self.split_audio_to_words)
+            # worker.signals.finished.connect(self.thread_complete)
+            self.threadpool.start(worker)
 
     def split_audio_to_words(self, range):
         self.signalSent.emit(range)
@@ -181,16 +192,43 @@ class AudioPlayerApp(QMainWindow):
         self.player.setSource(QUrl.fromLocalFile(path))
         self.ui.StartAudioBtn.setEnabled(True)
 
-    def play_interval(self, words_list, gap_sec_time=0, speed=1, repeat_times=1):
+    # def play_interval(self, words_list, gap_sec_time=0, speed=1, repeat_times=1):
+    #     self.play_intervals = words_list
+    #     self.interval_index = 0
+    #     self.repeat_counter = repeat_times
+    #     self.gap_sec_time = gap_sec_time
+    #     self.player.setPlaybackRate(speed)
+    #     self.play_next_interval()
+    #
+    # def play_next_interval(self):
+    #     if self.interval_index < len(self.play_intervals):
+    #         start_time, end_time = self.play_intervals[self.interval_index]
+    #         print(f"play_next_interval {start_time} {end_time}")
+    #         if self.repeat_counter_current < self.repeat_counter:
+    #             self.player.setPosition(start_time)  # Convert to milliseconds
+    #             self.player.play()
+    #             self.timer.start(end_time - start_time)  # Set timer duration
+    #             self.repeat_counter_current += 1
+    #         else:
+    #             self.repeat_counter_current = 0
+    #             self.interval_index += 1
+    #             self.timer.start(self.gap_sec_time * 1000)  # Gap time of 1 second between intervals
+    #     else:
+    #         self.player.pause()
+    #         self.timer.stop()
+
+    def start_play_interval(self, words_list, gap_sec_time=0, speed=1, repeat_times=1):
         self.play_intervals = words_list
         self.interval_index = 0
         self.repeat_counter = repeat_times
         self.gap_sec_time = gap_sec_time
-        self.player.setPlaybackRate(speed)
+        self.speed = speed
+        self.player.setPlaybackRate(self.speed)
         self.play_next_interval()
 
     def play_next_interval(self):
         if self.interval_index < len(self.play_intervals):
+            self.signalIntervalIndex.emit(self.interval_index)
             start_time, end_time = self.play_intervals[self.interval_index]
             print(f"play_next_interval {start_time} {end_time}")
             if self.repeat_counter_current < self.repeat_counter:
@@ -198,13 +236,43 @@ class AudioPlayerApp(QMainWindow):
                 self.player.play()
                 self.timer.start(end_time - start_time)  # Set timer duration
                 self.repeat_counter_current += 1
+                self.timer_active = True
             else:
                 self.repeat_counter_current = 0
                 self.interval_index += 1
                 self.timer.start(self.gap_sec_time * 1000)  # Gap time of 1 second between intervals
+                self.timer_active = True
         else:
             self.player.pause()
             self.timer.stop()
+            self.timer_active = False
+
+    def pause_interval(self):
+        if self.timer_active:
+            self.player.pause()
+            self.timer.stop()
+            self.timer_active = False
+        else:
+            # Resume playback from the current position
+            self.player.play()
+            self.timer_active = True
+            self.play_next_interval()
+
+    def next_interval(self):
+        if self.interval_index < len(self.play_intervals) - 1:
+            self.interval_index += 1
+            self.play_next_interval()
+        else:
+            self.timer.stop()
+            self.timer_active = False
+
+    def prev_interval(self):
+        if self.interval_index > 0:
+            self.interval_index -= 1
+            self.play_next_interval()
+        else:
+            self.timer.stop()
+            self.timer_active = False
 
     def audio_play_slider_changed(self, position):
         self.player.setPosition(position)
@@ -239,12 +307,12 @@ class AudioPlayerApp(QMainWindow):
 
     def update_word_time_range(self, time_rsave_new_audio_to_dbange: str):
         pattern = r'\b\d+\b'
-        matches = re.findall(pattern, time_range)
+        matches = re.findall(pattern, time_rsave_new_audio_to_dbange)
         start_position = int(matches[0])
         end_position = int(matches[1])
         self.ui.WordTimeStartInput.setText(self.convert_position_to_qtime(start_position))
         self.ui.WordTimeEndInput.setText(self.convert_position_to_qtime(end_position))
-        self.play_interval([[start_position, end_position]])
+        self.start_play_interval([[start_position, end_position]])
 
     def save_word_and_audio_time_range(self):
         text = self.ui.AudioWordInput.text()

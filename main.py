@@ -15,7 +15,7 @@ class MainWindow(QMainWindow):
         self.ui.setupUi(self)
         self.player = audio_player.AudioPlayerApp()
         self.audio_words = audio_words.AudioWordList()
-        self.dictation = word_dictition.WordDictation()
+        self.dictation = word_dictition.WordDictation(self.player)
         self.player.setup_ui(self.ui)
         self.audio_words.setup_ui(self.ui)
         self.dictation.setup_ui(self.ui)
@@ -26,8 +26,8 @@ class MainWindow(QMainWindow):
         self.player.signalSent.connect(self.audio_words.updateListView)
         self.player.signalAudioWordSave.connect(self.audio_words.editTextChanged)
         self.player.signalSaveWordToDB.connect(self.audio_words.save_new_audio_to_db)
-
         self.audio_words.signalListViewItem.connect(self.player.update_word_time_range)
+
 
     # def eventFilter(self, source, event):
     #     if event.type() == QEvent.Type.KeyPress:
