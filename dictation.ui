@@ -287,7 +287,7 @@ p, li { white-space: pre-wrap; }
          </spacer>
         </item>
         <item>
-         <widget class="QProgressBar" name="progressBar_3">
+         <widget class="QProgressBar" name="progressBarWordPlay2">
           <property name="value">
            <number>24</number>
           </property>
@@ -307,7 +307,7 @@ p, li { white-space: pre-wrap; }
          </spacer>
         </item>
         <item>
-         <widget class="QLineEdit" name="lineEdit_4"/>
+         <widget class="QLineEdit" name="lineEditWordDictation"/>
         </item>
         <item>
          <spacer name="verticalSpacer_6">
@@ -323,7 +323,7 @@ p, li { white-space: pre-wrap; }
          </spacer>
         </item>
         <item>
-         <widget class="QTextEdit" name="textEditWordDisplay_2">
+         <widget class="QTextEdit" name="textEditWordDisplay2">
           <property name="html">
            <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
@@ -350,9 +350,9 @@ p, li { white-space: pre-wrap; }
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_9">
           <item>
-           <widget class="QPushButton" name="pushButton_12">
+           <widget class="QPushButton" name="btnWordPlaySetting2">
             <property name="text">
-             <string>PushButton</string>
+             <string>Setting</string>
             </property>
            </widget>
           </item>
@@ -372,21 +372,21 @@ p, li { white-space: pre-wrap; }
           <item>
            <widget class="QPushButton" name="pushButton_13">
             <property name="text">
-             <string>PushButton</string>
+             <string>&lt;</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="pushButton_14">
             <property name="text">
-             <string>PushButton</string>
+             <string>||</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QPushButton" name="pushButton_15">
             <property name="text">
-             <string>PushButton</string>
+             <string>&gt;</string>
             </property>
            </widget>
           </item>

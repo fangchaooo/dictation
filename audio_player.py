@@ -117,7 +117,7 @@ class AudioPlayerApp(QMainWindow):
         ################ split word #############################
 
         self.player.positionChanged.connect(self.position_changed)
-        self.player.durationChanged.connect(self.duration_changed)
+        # self.player.durationChanged.connect(self.duration_changed)
 
     def audio_mute_or_open(self):
         self.muted = not self.muted
@@ -192,30 +192,9 @@ class AudioPlayerApp(QMainWindow):
         self.player.setSource(QUrl.fromLocalFile(path))
         self.ui.StartAudioBtn.setEnabled(True)
 
-    # def play_interval(self, words_list, gap_sec_time=0, speed=1, repeat_times=1):
-    #     self.play_intervals = words_list
-    #     self.interval_index = 0
-    #     self.repeat_counter = repeat_times
-    #     self.gap_sec_time = gap_sec_time
-    #     self.player.setPlaybackRate(speed)
-    #     self.play_next_interval()
-    #
-    # def play_next_interval(self):
-    #     if self.interval_index < len(self.play_intervals):
-    #         start_time, end_time = self.play_intervals[self.interval_index]
-    #         print(f"play_next_interval {start_time} {end_time}")
-    #         if self.repeat_counter_current < self.repeat_counter:
-    #             self.player.setPosition(start_time)  # Convert to milliseconds
-    #             self.player.play()
-    #             self.timer.start(end_time - start_time)  # Set timer duration
-    #             self.repeat_counter_current += 1
-    #         else:
-    #             self.repeat_counter_current = 0
-    #             self.interval_index += 1
-    #             self.timer.start(self.gap_sec_time * 1000)  # Gap time of 1 second between intervals
-    #     else:
-    #         self.player.pause()
-    #         self.timer.stop()
+    def stop(self):
+        self.player.stop()
+        self.reset_interval()
 
     def start_play_interval(self, words_list, gap_sec_time=0, speed=1, repeat_times=1):
         self.play_intervals = words_list
@@ -226,26 +205,41 @@ class AudioPlayerApp(QMainWindow):
         self.player.setPlaybackRate(self.speed)
         self.play_next_interval()
 
+    def update_play_interval_setting(self, gap_sec_time, speed, repeat_times):
+        self.repeat_counter = repeat_times
+        self.gap_sec_time = gap_sec_time
+        self.speed = speed
+
     def play_next_interval(self):
         if self.interval_index < len(self.play_intervals):
             self.signalIntervalIndex.emit(self.interval_index)
             start_time, end_time = self.play_intervals[self.interval_index]
             print(f"play_next_interval {start_time} {end_time}")
-            if self.repeat_counter_current < self.repeat_counter:
+            if self.repeat_counter_current < self.repeat_counter - 1:
                 self.player.setPosition(start_time)  # Convert to milliseconds
                 self.player.play()
-                self.timer.start(end_time - start_time)  # Set timer duration
+                self.timer.start((end_time - start_time) + self.gap_sec_time * 1000)  # Set timer duration
                 self.repeat_counter_current += 1
                 self.timer_active = True
             else:
                 self.repeat_counter_current = 0
                 self.interval_index += 1
-                self.timer.start(self.gap_sec_time * 1000)  # Gap time of 1 second between intervals
+                # self.timer.start(self.gap_sec_time * 1000)  # Gap time of 1 second between intervals
                 self.timer_active = True
         else:
             self.player.pause()
             self.timer.stop()
             self.timer_active = False
+
+    def reset_interval(self):
+        self.play_intervals = []
+        self.interval_index = 0
+        self.repeat_counter = 0
+        self.repeat_counter_current = 0
+        self.gap_sec_time = 0
+        self.timer_active = None
+        self.speed = None
+        self.timer.stop()
 
     def pause_interval(self):
         if self.timer_active:
@@ -286,9 +280,9 @@ class AudioPlayerApp(QMainWindow):
         self.ui.AudioStartTimeLabel.setText(self.convert_position_to_qtime(position))
         self.ui.WordTimeEndInput.setText(self.convert_position_to_qtime(position))
 
-    def duration_changed(self, duration):
-        # self.ui.horizontalSliderPlay.setRange(0, duration)
-        print(duration)
+    # def duration_changed(self, duration):
+    #     # self.ui.horizontalSliderPlay.setRange(0, duration)
+    #     print(duration)
 
     def convert_position_to_qtime(self, position):
         mseconds = position % 1000

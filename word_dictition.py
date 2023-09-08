@@ -1,11 +1,12 @@
 from pprint import pprint
 
+from PyQt6 import QtWidgets, QtCore
 from PyQt6.QtGui import QFont, QPalette, QColor
 
 from audio_player import AudioPlayerApp
 from dictation_db import DictationDB
 from PyQt6.QtCore import Qt, QAbstractItemModel, QModelIndex, QStringListModel, QAbstractListModel, QVariant, QPoint, \
-    QPropertyAnimation, QEasingCurve
+    QPropertyAnimation, QEasingCurve, QTimer
 from PyQt6.QtWidgets import QListView, QMainWindow, QPushButton, QVBoxLayout, QWidget, QStyledItemDelegate, \
     QApplication, \
     QStyle, QStyleOptionViewItem, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QDialog
@@ -77,19 +78,19 @@ class SettingsDialog(QDialog):
 
 
 class CyclingRemember(QMainWindow):
-    def __init__(self, player: AudioPlayerApp, parent=None):
+    def __init__(self, player: AudioPlayerApp, words_data, setting: SettingsDialog, parent=None):
         super().__init__(parent)
         self.ui = None
-        self.words_data = None
+        self.words_data = words_data
         self.player = player
-        self.setting = None
+        self.setting_dialog = setting
         self.words_intervals = None
 
     def setup_ui(self, ui: dictation.Ui_Form):
         ui.btnWordPlaySetting.clicked.connect(self.start_setting)
         ui.btnWordPlayNext.clicked.connect(self.next)
         ui.btnWordPlayPrev.clicked.connect(self.prev)
-        ui.btnWordPlayStop.clicked.connect(self.prev)
+        ui.btnWordPlayStop.clicked.connect(self.pause)
 
         style = """
                 QProgressBar {
@@ -131,11 +132,8 @@ class CyclingRemember(QMainWindow):
     def set_words_data(self, data):
         self.words_data = data
 
-    def set_play_setting(self, setting):
-        self.setting = setting
-
     def start_setting(self):
-        pass
+        self.setting_dialog.exec()
 
     def play(self):
         self.ui.progressBarWordPlay.setRange(0, len(self.words_data.words))
@@ -146,8 +144,17 @@ class CyclingRemember(QMainWindow):
             self.player.set_volume(100)
         words = self.words_data.words
         words_intervals = [[word.word_start_time, word.word_end_time] for word in words]
-        self.player.start_play_interval(words_intervals, self.setting.time_gap, self.setting.speed,
-                                        self.setting.played_times)
+        self.player.start_play_interval(words_intervals, self.setting_dialog.setting.time_gap,
+                                        self.setting_dialog.setting.speed,
+                                        self.setting_dialog.setting.played_times)
+
+    def update_setting(self):
+        self.player.update_play_interval_setting(self.setting_dialog.setting.time_gap,
+                                                 self.setting_dialog.setting.speed,
+                                                 self.setting_dialog.setting.played_times)
+
+    def stop(self):
+        self.player.stop()
 
     def pause(self):
         self.player.pause_interval()
@@ -168,12 +175,166 @@ class CyclingRemember(QMainWindow):
 
 
 class InputDictation(QMainWindow):
-    def __init__(self, model):
-        super().__init__()
-        self.ui = None
+    def __init__(self, player: AudioPlayerApp, words_data, setting: SettingsDialog, parent=None):
+        super().__init__(parent)
+        self.ui: dictation.Ui_Form = None
+        self.words_data = words_data
+        self.player = player
+        self.setting_dialog = setting
+        self.words_intervals = None
 
     def setup_ui(self, ui: dictation.Ui_Form):
         self.ui = ui
+        self.ui.btnWordPlaySetting2.clicked.connect(self.start_setting)
+
+        self.ui.readyButton = QtWidgets.QPushButton(self.ui.layoutWidget3)
+        self.ui.readyButton.setGeometry(QtCore.QRect(40, 20, 140, 46))
+        self.ui.readyButton.setObjectName("readyButton")
+        self.ui.readyButton.setText("Start Dictation")
+
+        # Connect the button click event to toggle_widgets_visibility
+        self.ui.readyButton.clicked.connect(self.toggle_widgets_visibility)
+
+        # Hide the lineEditWordDictation and textEditWordDisplay2 initially
+        self.ui.lineEditWordDictation.hide()
+        self.ui.textEditWordDisplay2.hide()
+
+        style = """
+                QProgressBar {
+                    border: 2px solid #aaa;
+                    border-radius: 5px;
+                    background: #f1f1f1;
+                    text-align: center;
+                }
+                QProgressBar::chunk {
+                    background: #4CAF50;
+                    width: 20px;
+                }
+                """
+        self.ui.progressBarWordPlay2.setStyleSheet(style)
+        self.ui.lineEditWordDictation.setStyleSheet("""
+            QLineEdit {
+                background-color: #F0F0F0;
+                border: 1px solid #C0C0C0;
+                border-radius: 10px; /* Increase border radius for a more rounded appearance */
+                padding: 10px; /* Increase padding for more space */
+                font-size: 16px; /* Increase font size for bigger text */
+            }
+            QLineEdit:focus {
+                border: 2px solid #0078D4;
+            }
+        """)
+
+        # For textEditWordDisplay2 (making it smaller)
+        self.ui.textEditWordDisplay2.setStyleSheet("""
+            QTextEdit {
+                background-color: #FFFFFF; /* White background */
+                border: 1px solid #C0C0C0;
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 14px; /* Decrease font size for smaller text */
+            }
+        """)
+
+        # Additional settings for lineEditWordDictation
+        self.ui.lineEditWordDictation.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.ui.lineEditWordDictation.setPlaceholderText("Enter a word...")
+
+        # Additional settings for textEditWordDisplay2
+        self.ui.textEditWordDisplay2.setReadOnly(True)
+        self.ui.textEditWordDisplay2.setTextInteractionFlags(
+            Qt.TextInteractionFlag.NoTextInteraction)  # Disable text interaction
+
+        # Handling "Enter" key event for lineEditWordDictation
+        self.ui.lineEditWordDictation.returnPressed.connect(self.handleEnterPressed)
+
+    def handleEnterPressed(self):
+        word = self.ui.lineEditWordDictation.text()
+        self.ui.textEditWordDisplay2.setPlainText(word)
+        QTimer.singleShot(1000, self.clearTextEdit)
+
+    # Function to clear text from textEditWordDisplay2
+    def clearTextEdit(self):
+        self.ui.textEditWordDisplay2.clear()
+
+    def toggle_widgets_visibility(self):
+        # Toggle the visibility of lineEditWordDictation and textEditWordDisplay2
+        self.ui.lineEditWordDictation.setHidden(not self.ui.lineEditWordDictation.isHidden())
+        self.ui.textEditWordDisplay2.setHidden(not self.ui.textEditWordDisplay2.isHidden())
+
+        if self.ui.textEditWordDisplay2.isVisible():
+            self.ui.readyButton.setVisible(False)
+
+        self.play()
+
+    def reset(self):
+        self.toggle_widgets_visibility()
+        self.ui.readyButton.setVisible(True)
+
+    def update_text(self, line1, line2):
+        html = f"""
+            <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd">
+            <html>
+            <head>
+                <meta name="qrichtext" content="1" />
+                <style type="text/css">
+                    p, li {{ white-space: pre-wrap; }}
+                </style>
+            </head>
+            <body style="font-family: Arial, sans-serif; font-size: 14pt; font-weight: 400; font-style: normal; text-align: center;">
+                <p style="margin: 0;">
+                    <span style="font-size: 36pt; font-weight: 600; color: #333;">{line1}</span>
+                </p>
+                <p style="margin: 12px 0;">
+                    <span style="font-size: 24pt; color: #666; vertical-align: super;">{line2}</span>
+                </p>
+            </body>
+            </html>
+            """
+        self.ui.textEditWordDisplay.setHtml(html)
+
+    def set_words_data(self, data):
+        self.words_data = data
+
+    def start_setting(self):
+        pass
+
+    def play(self):
+        self.ui.progressBarWordPlay2.setRange(0, len(self.words_data.words))
+        audio_path = self.words_data.location
+        self.player.signalIntervalIndex.connect(self.display_word)
+        if self.player.paly_source != audio_path:
+            self.player.open_music(False, audio_path)
+            self.player.set_volume(100)
+        words = self.words_data.words
+        words_intervals = [[word.word_start_time, word.word_end_time] for word in words]
+        self.player.start_play_interval(words_intervals, self.setting_dialog.setting.time_gap,
+                                        self.setting_dialog.setting.speed,
+                                        self.setting_dialog.setting.played_times)
+
+    def update_setting(self):
+        self.player.update_play_interval_setting(self.setting_dialog.setting.time_gap,
+                                                 self.setting_dialog.setting.speed,
+                                                 self.setting_dialog.setting.played_times)
+
+    def stop(self):
+        self.player.stop()
+
+    def pause(self):
+        self.player.pause_interval()
+
+    def next(self):
+        self.player.next_interval()
+
+    def prev(self):
+        self.player.prev_interval()
+
+    def display_word(self, index):
+        if self.words_data:
+            word, mean = self.words_data.words[index].word, self.words_data.words[index].word_chinese_mean
+            self.update_text(word, mean)
+            self.ui.progressBarWordPlay.setValue(index)
+            self.ui.progressBarWordPlay.setFormat(f"Processing: {index}/{len(self.words_data.words)}")
 
 
 class CustomItem:
@@ -255,18 +416,21 @@ class WordDictation(QMainWindow):
         self.ui = None
         self.audio_words_all = []
         self.audio_recent_error_words = []
-        self.dictations_words = []
+        self.dictations_tree_words = []
         self.select_listview_name = None
         self.db = DictationDB()
         self.word_study_setting = SettingsDialog(self)
 
+        self.dictations_words = None
         self.player = player
         self.tree_view_select_parent_index = None
         self.tree_view_select_children_index = None
-        self.cycling_remember = CyclingRemember(player)
+        self.cycling_remember = CyclingRemember(player, self.dictations_words, self.word_study_setting)
+        self.input_dictation = InputDictation(player, self.dictations_words, self.word_study_setting)
 
     def setup_ui(self, ui: dictation.Ui_Form):
         self.cycling_remember.setup_ui(ui)
+        self.input_dictation.setup_ui(ui)
         self.ui = ui
         self.tree_view = ui.treeViewAllDictationWord
         self.root_item = CustomItem("Root")
@@ -299,6 +463,8 @@ class WordDictation(QMainWindow):
         self.tab_changed(0)
 
     def tab_changed(self, index):
+        self.cycling_remember.stop()
+        self.input_dictation.stop()
         # Handle the tab change here
         if index == 0:  # Assuming you want to switch to the first tab
             self.ui.stackedWidget.setCurrentIndex(0)
@@ -311,12 +477,20 @@ class WordDictation(QMainWindow):
         self.word_study_setting.save_settings()
         self.word_study_setting.close()
         if self.word_study_setting.setting.selected_mode == "Cycling Remember":
+            if self.ui.stackedWidget.currentIndex() == 1:
+                self.cycling_remember.update_setting()
+                return
             self.tab_changed(1)
-            self.cycling_remember.set_play_setting(self.word_study_setting.setting)
-            self.cycling_remember.set_words_data(self.dictations_words[self.tree_view_select_parent_index]["audio"])
+            # self.cycling_remember.set_words_data(
+            #     self.dictations_tree_words[self.tree_view_select_parent_index]["audio"].words)
             self.cycling_remember.play()
         elif self.word_study_setting.setting.selected_mode == "Dictation":
+            if self.ui.stackedWidget.currentIndex() == 2:
+                self.input_dictation.update_setting()
+                return
             self.tab_changed(2)
+            # self.dictations_words.set_words_data(
+            #     self.dictations_tree_words[self.tree_view_select_parent_index]["audio"].words)
 
     def click_start_learn_word(self):
         self.word_study_setting.exec()
@@ -325,16 +499,16 @@ class WordDictation(QMainWindow):
         self.audio_dictations = self.db.get_audio_and_wordinfo_for_tree_view()
         data_dict = {}
         items = []
-        self.dictations_words = []
+        self.dictations_tree_words = []
         for audio, dictation in self.audio_dictations:
             if audio.name not in data_dict:
                 data_dict[audio.name] = CustomItem(audio.name, self.root_item)
                 items.append(data_dict[audio.name])
-                self.dictations_words.append({"audio": audio, "dictation": []})
+                self.dictations_tree_words.append({"audio": audio, "dictation": []})
             if dictation:
                 dictation_text = f"{dictation.dictation_time.strftime('%Y/%m/%d %H:%M')}"
                 data_dict[audio.name].children.append(CustomItem(dictation_text, data_dict[audio.name]))
-                for w in self.dictations_words:
+                for w in self.dictations_tree_words:
                     if w["audio"].name == dictation.audio_name:
                         w["dictation"].append(dictation)
 
@@ -356,11 +530,16 @@ class WordDictation(QMainWindow):
         self.select_listview_name = "all_word_list_view"
         self.ui.listViewAllWord.setStyleSheet("QListView { border: 2px solid red; }")
         self.ui.listViewRecentErrorWord.setStyleSheet("")  # Reset style sheet
-
+        self.dictations_words = self.dictations_tree_words[self.tree_view_select_parent_index]["audio"]
+        if self.tree_view_select_parent_index is not None and self.tree_view_select_children_index is not None:
+            self.dictations_words = self.dictations_tree_words[self.tree_view_select_parent_index]["audio"]
     def recent_error_word_list_view_selected(self):
         self.select_listview_name = "recent_error_word_list_view"
         self.ui.listViewRecentErrorWord.setStyleSheet("QListView { border: 2px solid red; }")
         self.ui.listViewAllWord.setStyleSheet("")  # Reset style sheet
+        self.dictations_words = self.dictations_tree_words[self.tree_view_select_parent_index]["audio"]
+        if self.tree_view_select_parent_index is not None and self.tree_view_select_children_index is not None:
+            self.dictations_words = self.dictations_tree_words[self.tree_view_select_parent_index]["dictation"]
 
     def all_words_label_changed(self):
         print("change")
@@ -373,6 +552,7 @@ class WordDictation(QMainWindow):
         pass
 
     def on_treeview_item_clicked(self, index):
+
         self.tab_changed(0)
         item = index.internalPointer()
         if item:
@@ -386,5 +566,5 @@ class WordDictation(QMainWindow):
 
         if self.tree_view_select_parent_index is not None:
             self.audio_words_all = [x.word for x in
-                                    self.dictations_words[self.tree_view_select_parent_index]["audio"].words]
+                                    self.dictations_tree_words[self.tree_view_select_parent_index]["audio"].words]
             self.model_all_words.setStringList(self.audio_words_all)

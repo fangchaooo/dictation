@@ -15,30 +15,31 @@ class Audio(Base):
     words = relationship('Word', back_populates='audio')
     dictations = relationship('Dictation', back_populates='audio')
 
-
 class Word(Base):
     __tablename__ = 'words'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    audio_name = Column(String, ForeignKey('audio.name'), nullable=False)
+    audio_id = Column(Integer, ForeignKey('audio.id'), nullable=False)
     word = Column(String, nullable=False)
     word_chinese_mean = Column(String, nullable=False)
     word_start_time = Column(Integer, nullable=False)
     word_end_time = Column(Integer, nullable=False)
     audio = relationship('Audio', back_populates='words')
-
+    dictations = relationship('Dictation', back_populates='word')
 
 class Dictation(Base):
     __tablename__ = 'dictation'
     id = Column(Integer, primary_key=True, autoincrement=True)
     dictation_time = Column(DateTime, nullable=False)
-    error_word = Column(String)
-    audio_name = Column(String, ForeignKey('audio.name'))
+    error_word = Column(String)  # Update 'correct_column_name_here'
+    word_id = Column(Integer, ForeignKey('words.id'))  # Create a foreign key relationship to words table
+    word = relationship('Word', back_populates='dictations')  # Create a relationship to Word class
+    audio_name = Column(String, ForeignKey('audio.name'))  # Create a foreign key relationship to audio table
     audio = relationship('Audio', back_populates='dictations')
 
 
 class DictationDB:
     def __init__(self):
-        self.engine = create_engine('sqlite:///dictation.db')
+        self.engine = create_engine('sqlite:///dictation2.db')
         Base.metadata.create_all(self.engine)
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
